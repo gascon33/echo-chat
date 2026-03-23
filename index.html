@@ -647,15 +647,31 @@ function renderContacts() {
     list.innerHTML = '<div class="empty-contacts">Нет контактов.<br/>Зарегистрируй другого пользователя.</div>';
     return;
   }
+
+  var q = (contactFilter || '').toLowerCase();
+  var filtered = allContacts.filter(function(user) {
+    if (!q) return true;
+    return user.username.toLowerCase().indexOf(q) !== -1;
+  });
+
   list.innerHTML = '';
-  allContacts.forEach(function(user) {
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty-contacts">Ник не найден.<br/>Попробуй другой @username.</div>';
+    return;
+  }
+
+  filtered.forEach(function(user) {
     var btn = document.createElement('button');
     btn.className = 'contact-btn' + (selectedUser && selectedUser.id === user.id ? ' active' : '');
-    btn.innerHTML = '<div class="contact-name">' + escapeHtml(user.username) + '</div><div class="contact-sub">нажми чтобы написать</div>';
+    btn.innerHTML =
+      '<div class="contact-name">@' + escapeHtml(user.username) + '</div>' +
+      '<div class="contact-sub">нажми чтобы написать</div>';
     btn.onclick = function() { selectUser(user); };
     list.appendChild(btn);
   });
 }
+
 
 function selectUser(user) {
   selectedUser = user;
