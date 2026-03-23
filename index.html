@@ -4,9 +4,22 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ECHO — зашифрованный чат</title>
+
+  <!-- PWA: manifest + цвета статус-бара -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#080a10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ECHO" />
+
+  <!-- Иконка (можно будет заменить на свою) -->
+  <link rel="icon" sizes="192x192" href="/icon-192.png" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -19,13 +32,16 @@
       --r: 12px; --r-lg: 20px;
     }
 
-    html, body { height: 100%; }
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
 
     body {
       background: var(--bg);
       color: var(--text);
       font-family: var(--sans);
-      overflow: auto;              /* было hidden */
+      overflow: hidden;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -116,12 +132,13 @@
     }
     .error-box.hidden { display:none; }
 
-    /* CHAT */
+    /* CHAT WRAPPER */
     #screen-chat {
       flex-direction: row;
       width: 100%;
       max-width: 1200px;
       height: 90vh;
+      max-height: 900px;
       background: var(--surface);
       border-radius: var(--r-lg);
       border: 1px solid var(--border2);
@@ -238,30 +255,53 @@
     .typing-dot:nth-child(3) { animation-delay:0.4s; }
     @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
 
-    /* Адаптация под маленькие экраны */
+    /* TABLET / SMALL DESKTOP */
+    @media (max-width: 900px) {
+      body {
+        padding: 8px;
+      }
+      #screen-chat {
+        width: 100%;
+        max-width: 100%;
+        height: 95vh;
+        max-height: 95vh;
+      }
+    }
+
+    /* MOBILE: чат как приложение во весь экран */
     @media (max-width: 768px) {
       body {
-        align-items: flex-start;
-        padding: 8px;
+        padding: 0;
+        align-items: stretch;
+        overflow: hidden;
       }
 
       #screen-chat {
         flex-direction: column;
+        width: 100%;
+        max-width: 100%;
         height: 100vh;
-        border-radius: 16px;
+        max-height: 100vh;
+        border-radius: 0;
+        border: none;
       }
 
       .sidebar {
-        position: relative;
-        transform: none !important;
-        width: 100%;
-        min-width: 100%;
-        height: auto;
-        max-height: 40vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        max-height: 100vh;
+        width: 80%;
+        min-width: 80%;
+        transform: translateX(-100%);
+        box-shadow: 0 0 40px rgba(0,0,0,0.6);
       }
-
-      .contacts-list {
-        max-height: 30vh;
+      .sidebar.closed {
+        transform: translateX(-100%);
+      }
+      .sidebar:not(.closed) {
+        transform: translateX(0);
       }
 
       .chat-main {
@@ -269,37 +309,46 @@
         min-height: 0;
       }
 
+      .chat-header {
+        padding: 10px 12px;
+      }
+
       .messages-area {
-        max-height: 60vh;
+        padding: 12px;
+      }
+
+      .input-area {
+        padding: 10px 12px;
+      }
+
+      .msg-bubble {
+        max-width: 85%;
+        font-size: 13px;
       }
     }
 
     @media (max-width: 480px) {
+      #screen-auth {
+        max-width: 100%;
+      }
       .auth-card {
-        padding: 20px;
-        border-radius: 16px;
+        width: 100%;
+        max-width: 100%;
+        height: 100vh;
+        border-radius: 0;
+        border: none;
+        padding: 24px 16px;
       }
       .logo-text {
         font-size: 22px;
       }
-      .chat-header {
-        padding: 12px 16px;
+      .msg-input {
+        padding: 10px 14px;
+        font-size: 13px;
       }
-      .messages-area {
-        padding: 16px;
-      }
-      .input-area {
-        padding: 12px 16px;
-      }
-    }
-
-    @media (max-width:640px) {
-      /* старое поведение с выдвижным сайдбаром лучше убрать,
-         поэтому оставляем только адаптив из блока выше */
-      .sidebar.closed {
-        transform: none;
-        width: 100%;
-        min-width: 100%;
+      .btn-send {
+        width: 40px;
+        height: 40px;
       }
     }
   </style>
@@ -349,7 +398,7 @@
 
 <!-- CHAT -->
 <div id="screen-chat" class="screen">
-  <div class="sidebar" id="sidebar">
+  <div class="sidebar closed" id="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo">
         <div class="sidebar-logo-icon">
@@ -402,12 +451,16 @@
 </div>
 
 <script>
-// ============================================================
-//  ⚙️  КОНФИГУРАЦИЯ — вставь сюда свои ключи из Supabase
-// ============================================================
+// ===== PWA: регистрация service worker =====
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function(e){ console.log('SW reg error', e); });
+  });
+}
+
+// ===== КОНФИГ SUPABASE (оставь свои значения) =====
 var SUPABASE_URL  = 'https://fpbkjrbcxbhdfeghqofg.supabase.co';
 var SUPABASE_KEY  = 'sb_publishable_75ql7kmFMAs8yxOql2bh9Q_x7D7t6Hh';
-// ============================================================
 
 // Инициализация Supabase
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -527,12 +580,11 @@ async function handleAuth() {
     if (currentTab === 'register') {
       if (username.length < 3 || username.length > 20) { showError('Имя: 3-20 символов'); return; }
       if (password.length < 8) { showError('Пароль: минимум 8 символов'); return; }
-      // Check unique
       var check = await sb.from('echo_users').select('id').eq('username', username).maybeSingle();
       if (check.data) { showError('Это имя уже занято'); return; }
       var hash = await PasswordHasher.hash(password);
       var ins = await sb.from('echo_users').insert({ username: username, password_hash: hash }).select().single();
-      if (ins.error) { showError('Ошибка регистрации: ' + ins.error.message); return; }
+      if (ins.error) { showError('Ошибка регистрации: ' + ins.error.message'); return; }
       currentUser = ins.data;
     } else {
       var res = await sb.from('echo_users').select('*').eq('username', username).maybeSingle();
@@ -606,7 +658,7 @@ function selectUser(user) {
     '<div><h2>' + escapeHtml(user.username) + '</h2>' +
     '<div class="encrypted-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> end-to-end encrypted</div></div>';
   document.getElementById('input-area').style.display = '';
-  if (window.innerWidth <= 640) closeSidebar();
+  if (window.innerWidth <= 768) closeSidebar();
   loadAndRenderMessages();
 }
 
@@ -665,7 +717,6 @@ async function sendMessage() {
       sender_id: currentUser.id,
       encrypted_text: enc
     });
-    // Realtime will handle appending
   } catch(e) { console.error('Send error:', e); }
 }
 
@@ -705,3 +756,4 @@ document.getElementById('input-username').addEventListener('keydown', function(e
 </script>
 </body>
 </html>
+
