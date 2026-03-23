@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ECHO — зашифрованный чат</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #080a10; --surface: #0d1117; --surface2: #131820; --surface3: #1a2130;
+      --border: rgba(255,255,255,0.06); --border2: rgba(255,255,255,0.10);
+      --accent: #5fffb0; --accent-dim: rgba(95,255,176,0.12);
+      --text: #e8edf5; --text2: #8892a0; --text3: #4a5568;
+      --danger: #ff5f5f; --danger-dim: rgba(255,95,95,0.12);
+      --mono: 'Space Mono', monospace; --sans: 'DM Sans', sans-serif;
+      --r: 12px; --r-lg: 20px;
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      overflow: auto;              /* было hidden */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+    }
+
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none; z-index: 9999;
+    }
+    .glow-1, .glow-2 { position: fixed; pointer-events: none; border-radius: 50%; }
+    .glow-1 { width:600px;height:600px;background:radial-gradient(circle,rgba(95,255,176,0.05) 0%,transparent 70%);top:-200px;right:-200px; }
+    .glow-2 { width:500px;height:500px;background:radial-gradient(circle,rgba(94,196,255,0.04) 0%,transparent 70%);bottom:-150px;left:-150px; }
+
+    .screen { display: none; }
+    .screen.active { display: flex; }
+
+    /* AUTH */
+    #screen-auth {
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      width: 100%;
+      max-width: 420px;
+      z-index: 1;
+    }
+
+    .auth-card {
+      width:100%;
+      max-width:420px;
+      background:var(--surface);
+      border:1px solid var(--border2);
+      border-radius:var(--r-lg);
+      padding:32px;
+      position:relative;
+      z-index:1;
+    }
+    .auth-card::after {
+      content:'';position:absolute;inset:0;border-radius:var(--r-lg);
+      background:linear-gradient(135deg,rgba(95,255,176,0.03) 0%,transparent 50%);pointer-events:none;
+    }
+    .logo-row { display:flex;align-items:center;gap:14px;margin-bottom:32px; }
+    .logo-icon {
+      width:44px;height:44px;border:1px solid rgba(95,255,176,0.25);border-radius:10px;
+      display:flex;align-items:center;justify-content:center;color:var(--accent);background:var(--accent-dim);
+    }
+    .logo-text { font-family:var(--mono);font-size:26px;font-weight:700;letter-spacing:0.08em; }
+    .logo-sub { font-size:12px;color:var(--text2);font-family:var(--mono);margin-top:2px;letter-spacing:0.05em; }
+
+    .tab-row { display:flex;margin-bottom:28px;border:1px solid var(--border2);border-radius:var(--r);overflow:hidden; }
+    .tab-btn {
+      flex:1;padding:10px;background:none;border:none;cursor:pointer;
+      font-family:var(--mono);font-size:12px;letter-spacing:0.06em;color:var(--text2);transition:all 0.15s;
+    }
+    .tab-btn.active { background:var(--accent-dim);color:var(--accent); }
+
+    .field-label { display:block;font-size:11px;font-family:var(--mono);color:var(--text2);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:8px; }
+    .field-wrap { margin-bottom:18px; }
+    .field-rel { position:relative; }
+    .field-input {
+      width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);
+      padding:12px 16px;color:var(--text);font-family:var(--mono);font-size:14px;outline:none;transition:border-color 0.15s;
+    }
+    .field-input:focus { border-color:rgba(95,255,176,0.4); }
+    .field-input::placeholder { color:var(--text3); }
+    .field-input.pr { padding-right:44px; }
+
+    .eye-btn {
+      position:absolute;right:12px;top:50%;transform:translateY(-50%);
+      background:none;border:none;color:var(--text3);cursor:pointer;padding:4px;display:flex;align-items:center;
+    }
+    .eye-btn:hover { color:var(--text2); }
+
+    .btn-primary {
+      width:100%;background:var(--accent);color:#080a10;border:none;border-radius:var(--r);
+      padding:13px 20px;font-family:var(--mono);font-size:13px;font-weight:700;
+      letter-spacing:0.06em;cursor:pointer;transition:opacity 0.15s,transform 0.1s;margin-top:6px;
+    }
+    .btn-primary:hover { opacity:0.9; }
+    .btn-primary:active { transform:scale(0.99); }
+    .btn-primary:disabled { opacity:0.5;cursor:not-allowed; }
+
+    .error-box {
+      display:flex;align-items:flex-start;gap:10px;background:var(--danger-dim);
+      border:1px solid rgba(255,95,95,0.2);border-radius:var(--r);padding:12px 14px;
+      margin-bottom:20px;color:var(--danger);font-size:13px;font-family:var(--mono);
+    }
+    .error-box.hidden { display:none; }
+
+    /* CHAT */
+    #screen-chat {
+      flex-direction: row;
+      width: 100%;
+      max-width: 1200px;
+      height: 90vh;
+      background: var(--surface);
+      border-radius: var(--r-lg);
+      border: 1px solid var(--border2);
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .sidebar {
+      width:280px;min-width:280px;background:var(--surface);border-right:1px solid var(--border);
+      display:flex;flex-direction:column;
+      transition:transform 0.25s cubic-bezier(0.4,0,0.2,1),min-width 0.25s,width 0.25s;
+      overflow:hidden;z-index:10;
+    }
+    .sidebar.closed { transform:translateX(-100%);min-width:0;width:0; }
+    .sidebar-header { padding:20px 20px 16px;border-bottom:1px solid var(--border); }
+    .sidebar-logo { display:flex;align-items:center;gap:10px;margin-bottom:14px; }
+    .sidebar-logo-icon {
+      width:32px;height:32px;background:var(--accent-dim);border:1px solid rgba(95,255,176,0.2);
+      border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--accent);flex-shrink:0;
+    }
+    .sidebar-logo-text { font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:0.1em; }
+    .icon-btn {
+      background:none;border:none;color:var(--text2);cursor:pointer;
+      padding:6px;border-radius:8px;display:flex;align-items:center;transition:color 0.15s,background 0.15s;
+    }
+    .icon-btn:hover { color:var(--text);background:var(--surface2); }
+    .user-chip { display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:8px;font-size:13px;color:var(--text2); }
+    .user-chip-dot { width:7px;height:7px;background:var(--accent);border-radius:50%;flex-shrink:0;box-shadow:0 0 6px var(--accent); }
+    .user-chip-name { font-family:var(--mono);font-size:12px; }
+
+    .contacts-list { flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:4px; }
+    .contacts-list::-webkit-scrollbar { width:4px; }
+    .contacts-list::-webkit-scrollbar-thumb { background:var(--surface3);border-radius:4px; }
+
+    .contact-btn {
+      width:100%;background:none;border:1px solid transparent;border-radius:var(--r);
+      padding:12px 14px;text-align:left;cursor:pointer;transition:all 0.15s;color:var(--text);
+    }
+    .contact-btn:hover { background:var(--surface2);border-color:var(--border2); }
+    .contact-btn.active { background:var(--accent-dim);border-color:rgba(95,255,176,0.2); }
+    .contact-name { font-size:14px;font-weight:500;margin-bottom:2px; }
+    .contact-sub { font-size:11px;font-family:var(--mono);color:var(--text3); }
+    .contact-btn.active .contact-sub { color:rgba(95,255,176,0.5); }
+    .empty-contacts { padding:32px;text-align:center;color:var(--text3);font-family:var(--mono);font-size:12px;line-height:1.8; }
+
+    .sidebar-footer { padding:12px;border-top:1px solid var(--border); }
+    .btn-logout {
+      width:100%;background:none;border:1px solid rgba(255,95,95,0.15);border-radius:var(--r);
+      padding:10px;color:var(--danger);font-family:var(--mono);font-size:12px;
+      letter-spacing:0.05em;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:all 0.15s;
+    }
+    .btn-logout:hover { background:var(--danger-dim); }
+
+    .chat-main {
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      min-width:0;
+      background: var(--surface);
+    }
+    .chat-header {
+      padding:16px 24px;border-bottom:1px solid var(--border);
+      display:flex;align-items:center;gap:14px;background:var(--surface);flex-shrink:0;
+    }
+    .chat-header-info h2 { font-size:17px;font-weight:600;font-family:var(--mono); }
+    .encrypted-badge { display:flex;align-items:center;gap:5px;font-size:11px;font-family:var(--mono);color:var(--accent);letter-spacing:0.04em;margin-top:2px;opacity:0.7; }
+    .no-contact-label { color:var(--text3);font-family:var(--mono);font-size:13px; }
+
+    .messages-area {
+      flex:1 1 auto;
+      overflow-y:auto;
+      padding:24px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .messages-area::-webkit-scrollbar { width:4px; }
+    .messages-area::-webkit-scrollbar-thumb { background:var(--surface3);border-radius:4px; }
+
+    .msg-row { display:flex; }
+    .msg-row.mine { justify-content:flex-end; }
+    .msg-row.theirs { justify-content:flex-start; }
+    .msg-bubble { max-width:70%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;word-break:break-word; }
+    .msg-bubble.mine { background:var(--accent);color:#080a10;border-bottom-right-radius:4px;font-weight:500; }
+    .msg-bubble.theirs { background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-bottom-left-radius:4px; }
+    .msg-time { font-size:10px;font-family:var(--mono);margin-top:5px;opacity:0.5;letter-spacing:0.04em; }
+    .msg-bubble.mine .msg-time { text-align:right;color:rgba(8,10,16,0.7); }
+    .msg-bubble.theirs .msg-time { color:var(--text3); }
+
+    .empty-chat, .no-chat-selected {
+      flex:1;display:flex;align-items:center;justify-content:center;
+      flex-direction:column;gap:12px;color:var(--text3);font-family:var(--mono);font-size:13px;letter-spacing:0.04em;
+    }
+    .no-chat-icon { width:56px;height:56px;border:1px solid var(--border2);border-radius:16px;display:flex;align-items:center;justify-content:center;color:var(--text3); }
+
+    .input-area { padding:16px 24px;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0; }
+    .input-row { display:flex;gap:10px;align-items:center; }
+    .msg-input {
+      flex:1;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);
+      padding:12px 16px;color:var(--text);font-family:var(--sans);font-size:14px;outline:none;transition:border-color 0.15s;
+    }
+    .msg-input:focus { border-color:rgba(95,255,176,0.35); }
+    .msg-input::placeholder { color:var(--text3); }
+    .btn-send {
+      width:44px;height:44px;background:var(--accent);border:none;border-radius:var(--r);color:#080a10;
+      cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity 0.15s;
+    }
+    .btn-send:disabled { opacity:0.3;cursor:not-allowed; }
+    .btn-send:not(:disabled):hover { opacity:0.85; }
+
+    .typing-dot { display:inline-block;width:6px;height:6px;background:var(--text3);border-radius:50%;margin:0 2px;animation:blink 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay:0.2s; }
+    .typing-dot:nth-child(3) { animation-delay:0.4s; }
+    @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+    /* Адаптация под маленькие экраны */
+    @media (max-width: 768px) {
+      body {
+        align-items: flex-start;
+        padding: 8px;
+      }
+
+      #screen-chat {
+        flex-direction: column;
+        height: 100vh;
+        border-radius: 16px;
+      }
+
+      .sidebar {
+        position: relative;
+        transform: none !important;
+        width: 100%;
+        min-width: 100%;
+        height: auto;
+        max-height: 40vh;
+      }
+
+      .contacts-list {
+        max-height: 30vh;
+      }
+
+      .chat-main {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .messages-area {
+        max-height: 60vh;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .auth-card {
+        padding: 20px;
+        border-radius: 16px;
+      }
+      .logo-text {
+        font-size: 22px;
+      }
+      .chat-header {
+        padding: 12px 16px;
+      }
+      .messages-area {
+        padding: 16px;
+      }
+      .input-area {
+        padding: 12px 16px;
+      }
+    }
+
+    @media (max-width:640px) {
+      /* старое поведение с выдвижным сайдбаром лучше убрать,
+         поэтому оставляем только адаптив из блока выше */
+      .sidebar.closed {
+        transform: none;
+        width: 100%;
+        min-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="glow-1"></div>
+<div class="glow-2"></div>
+
+<!-- AUTH -->
+<div id="screen-auth" class="screen active">
+  <div class="auth-card">
+    <div class="logo-row">
+      <div class="logo-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c.5-2 1.5-3 3-3s2.5 2 4 2 2.5-4 4-4 2 2.5 3 3 2-1 4-1"/></svg>
+      </div>
+      <div>
+        <div class="logo-text">ECHO</div>
+        <div class="logo-sub">зашифрованный чат</div>
+      </div>
+    </div>
+    <div class="tab-row">
+      <button class="tab-btn active" id="tab-login" onclick="switchTab('login')">ВОЙТИ</button>
+      <button class="tab-btn" id="tab-register" onclick="switchTab('register')">СОЗДАТЬ АККАУНТ</button>
+    </div>
+    <div id="auth-error" class="error-box hidden">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="auth-error-text"></span>
+    </div>
+    <div class="field-wrap">
+      <label class="field-label">Имя пользователя</label>
+      <input class="field-input" type="text" id="input-username" placeholder="user123" autocomplete="username" />
+    </div>
+    <div class="field-wrap">
+      <label class="field-label" id="pass-label">Пароль</label>
+      <div class="field-rel">
+        <input class="field-input pr" type="password" id="input-password" placeholder="••••••••" autocomplete="current-password" />
+        <button class="eye-btn" onclick="togglePassword()">
+          <svg id="eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          <svg id="eye-off-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24M1 1l22 22"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-primary" id="auth-submit-btn" onclick="handleAuth()">ВОЙТИ</button>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="screen-chat" class="screen">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c.5-2 1.5-3 3-3s2.5 2 4 2 2.5-4 4-4 2 2.5 3 3 2-1 4-1"/></svg>
+        </div>
+        <span class="sidebar-logo-text">ECHO</span>
+        <button class="icon-btn" style="margin-left:auto" onclick="closeSidebar()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="user-chip">
+        <div class="user-chip-dot"></div>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span class="user-chip-name" id="current-username-label"></span>
+      </div>
+    </div>
+    <div class="contacts-list" id="contacts-list"></div>
+    <div class="sidebar-footer">
+      <button class="btn-logout" onclick="handleLogout()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        Выход
+      </button>
+    </div>
+  </div>
+
+  <div class="chat-main">
+    <div class="chat-header">
+      <button class="icon-btn" onclick="openSidebar()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+      </button>
+      <div id="chat-header-info"><span class="no-contact-label">Выберите контакт</span></div>
+    </div>
+    <div class="messages-area" id="messages-area">
+      <div class="no-chat-selected">
+        <div class="no-chat-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c.5-2 1.5-3 3-3s2.5 2 4 2 2.5-4 4-4 2 2.5 3 3 2-1 4-1"/></svg>
+        </div>
+        <span>выберите контакт чтобы начать чат</span>
+      </div>
+    </div>
+    <div class="input-area" id="input-area" style="display:none">
+      <div class="input-row">
+        <input class="msg-input" type="text" id="msg-input" placeholder="Напишите сообщение…" />
+        <button class="btn-send" id="btn-send" onclick="sendMessage()" disabled>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  ⚙️  КОНФИГУРАЦИЯ — вставь сюда свои ключи из Supabase
+// ============================================================
+var SUPABASE_URL  = 'https://fpbkjrbcxbhdfeghqofg.supabase.co';
+var SUPABASE_KEY  = 'sb_publishable_75ql7kmFMAs8yxOql2bh9Q_x7D7t6Hh';
+// ============================================================
+
+// Инициализация Supabase
+var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ===== STATE =====
+var currentUser    = null;
+var currentPassword = '';
+var selectedUser   = null;
+var encryptionKey  = null;
+var currentTab     = 'login';
+var realtimeSub    = null;
+var allContacts    = [];
+
+// ===== CRYPTO =====
+var PasswordHasher = {
+  hash: async function(password) {
+    var data = new TextEncoder().encode(password);
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var key = await crypto.subtle.deriveBits(
+      { name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' },
+      await crypto.subtle.importKey('raw', data, 'PBKDF2', false, ['deriveBits']), 256
+    );
+    var hashArr = new Uint8Array(key);
+    var combined = new Uint8Array(salt.length + hashArr.length);
+    combined.set(salt); combined.set(hashArr, salt.length);
+    return btoa(String.fromCharCode.apply(null, combined));
+  },
+  verify: async function(password, hash) {
+    try {
+      var combined = new Uint8Array(atob(hash).split('').map(function(c){return c.charCodeAt(0);}));
+      var salt = combined.slice(0,16);
+      var data = new TextEncoder().encode(password);
+      var key = await crypto.subtle.deriveBits(
+        { name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' },
+        await crypto.subtle.importKey('raw', data, 'PBKDF2', false, ['deriveBits']), 256
+      );
+      var hashArr = new Uint8Array(key);
+      var stored = combined.slice(16);
+      var result = 0;
+      for (var i=0;i<Math.min(hashArr.length,stored.length);i++) result |= hashArr[i]^stored[i];
+      return result === 0;
+    } catch(e) { return false; }
+  }
+};
+
+var Enc = {
+  deriveKey: async function(password) {
+    var data = new TextEncoder().encode(password);
+    var key = await crypto.subtle.importKey('raw', data, 'PBKDF2', false, ['deriveBits']);
+    var bits = await crypto.subtle.deriveBits(
+      { name:'PBKDF2', salt:new TextEncoder().encode('echo-cipher-salt-2024'), iterations:100000, hash:'SHA-256' },
+      key, 256
+    );
+    return crypto.subtle.importKey('raw', bits, 'AES-GCM', false, ['encrypt','decrypt']);
+  },
+  encrypt: async function(text, key) {
+    var data = new TextEncoder().encode(text);
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var enc = await crypto.subtle.encrypt({name:'AES-GCM',iv:iv}, key, data);
+    var combined = new Uint8Array(iv.length + enc.byteLength);
+    combined.set(iv); combined.set(new Uint8Array(enc), iv.length);
+    return btoa(String.fromCharCode.apply(null, combined));
+  },
+  decrypt: async function(blob, key) {
+    try {
+      var combined = new Uint8Array(atob(blob).split('').map(function(c){return c.charCodeAt(0);}));
+      var iv = combined.slice(0,12);
+      var data = combined.slice(12);
+      var dec = await crypto.subtle.decrypt({name:'AES-GCM',iv:iv}, key, data);
+      return new TextDecoder().decode(dec);
+    } catch(e) { return '[Сообщение повреждено]'; }
+  }
+};
+
+// ===== HELPERS =====
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function showError(msg) {
+  document.getElementById('auth-error-text').textContent = msg;
+  document.getElementById('auth-error').classList.remove('hidden');
+}
+function hideError() { document.getElementById('auth-error').classList.add('hidden'); }
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(function(s){s.classList.remove('active');});
+  document.getElementById(id).classList.add('active');
+}
+function chatKey(a, b) { return [a, b].sort().join('-'); }
+
+// ===== AUTH TABS =====
+function switchTab(tab) {
+  currentTab = tab;
+  var isLogin = tab === 'login';
+  document.getElementById('tab-login').classList.toggle('active', isLogin);
+  document.getElementById('tab-register').classList.toggle('active', !isLogin);
+  document.getElementById('auth-submit-btn').textContent = isLogin ? 'ВОЙТИ' : 'ЗАРЕГИСТРИРОВАТЬСЯ';
+  document.getElementById('pass-label').textContent = isLogin ? 'Пароль' : 'Пароль (8+ символов)';
+  hideError();
+}
+
+function togglePassword() {
+  var inp = document.getElementById('input-password');
+  var isText = inp.type === 'text';
+  inp.type = isText ? 'password' : 'text';
+  document.getElementById('eye-icon').style.display = isText ? '' : 'none';
+  document.getElementById('eye-off-icon').style.display = isText ? 'none' : '';
+}
+
+// ===== HANDLE AUTH =====
+async function handleAuth() {
+  hideError();
+  var username = document.getElementById('input-username').value.trim();
+  var password = document.getElementById('input-password').value;
+  var btn = document.getElementById('auth-submit-btn');
+  btn.disabled = true;
+  try {
+    if (currentTab === 'register') {
+      if (username.length < 3 || username.length > 20) { showError('Имя: 3-20 символов'); return; }
+      if (password.length < 8) { showError('Пароль: минимум 8 символов'); return; }
+      // Check unique
+      var check = await sb.from('echo_users').select('id').eq('username', username).maybeSingle();
+      if (check.data) { showError('Это имя уже занято'); return; }
+      var hash = await PasswordHasher.hash(password);
+      var ins = await sb.from('echo_users').insert({ username: username, password_hash: hash }).select().single();
+      if (ins.error) { showError('Ошибка регистрации: ' + ins.error.message); return; }
+      currentUser = ins.data;
+    } else {
+      var res = await sb.from('echo_users').select('*').eq('username', username).maybeSingle();
+      if (!res.data) { showError('Пользователь не найден'); return; }
+      var valid = await PasswordHasher.verify(password, res.data.password_hash);
+      if (!valid) { showError('Неверный пароль'); return; }
+      currentUser = res.data;
+    }
+    currentPassword = password;
+    encryptionKey = await Enc.deriveKey(password);
+    await enterChat();
+  } catch(e) {
+    showError('Ошибка: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ===== ENTER CHAT =====
+async function enterChat() {
+  document.getElementById('input-username').value = '';
+  document.getElementById('input-password').value = '';
+  document.getElementById('current-username-label').textContent = currentUser.username;
+  selectedUser = null;
+  await loadContacts();
+  renderMessages();
+  subscribeRealtime();
+  showScreen('screen-chat');
+}
+
+// ===== LOGOUT =====
+function handleLogout() {
+  if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
+  currentUser = null; currentPassword = ''; selectedUser = null; encryptionKey = null;
+  document.getElementById('input-area').style.display = 'none';
+  document.getElementById('chat-header-info').innerHTML = '<span class="no-contact-label">Выберите контакт</span>';
+  showScreen('screen-auth');
+}
+
+// ===== SIDEBAR =====
+function openSidebar() { document.getElementById('sidebar').classList.remove('closed'); }
+function closeSidebar() { document.getElementById('sidebar').classList.add('closed'); }
+
+// ===== CONTACTS =====
+async function loadContacts() {
+  var res = await sb.from('echo_users').select('id, username').neq('id', currentUser.id).order('username');
+  allContacts = res.data || [];
+  renderContacts();
+}
+
+function renderContacts() {
+  var list = document.getElementById('contacts-list');
+  if (allContacts.length === 0) {
+    list.innerHTML = '<div class="empty-contacts">Нет контактов.<br/>Зарегистрируй другого пользователя.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  allContacts.forEach(function(user) {
+    var btn = document.createElement('button');
+    btn.className = 'contact-btn' + (selectedUser && selectedUser.id === user.id ? ' active' : '');
+    btn.innerHTML = '<div class="contact-name">' + escapeHtml(user.username) + '</div><div class="contact-sub">нажми чтобы написать</div>';
+    btn.onclick = function() { selectUser(user); };
+    list.appendChild(btn);
+  });
+}
+
+function selectUser(user) {
+  selectedUser = user;
+  renderContacts();
+  document.getElementById('chat-header-info').innerHTML =
+    '<div><h2>' + escapeHtml(user.username) + '</h2>' +
+    '<div class="encrypted-badge"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> end-to-end encrypted</div></div>';
+  document.getElementById('input-area').style.display = '';
+  if (window.innerWidth <= 640) closeSidebar();
+  loadAndRenderMessages();
+}
+
+// ===== MESSAGES =====
+async function loadAndRenderMessages() {
+  var area = document.getElementById('messages-area');
+  area.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text3);font-family:var(--mono);font-size:12px;padding:24px"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
+
+  var key = chatKey(currentUser.id, selectedUser.id);
+  var res = await sb.from('echo_messages')
+    .select('*')
+    .eq('chat_key', key)
+    .order('created_at', { ascending: true });
+
+  var msgs = res.data || [];
+  if (msgs.length === 0) {
+    area.innerHTML = '<div class="empty-chat"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg><span>Начните разговор с ' + escapeHtml(selectedUser.username) + '</span></div>';
+    return;
+  }
+
+  var html = '';
+  for (var i = 0; i < msgs.length; i++) {
+    html += await buildMsgHtml(msgs[i]);
+  }
+  area.innerHTML = html;
+  area.scrollTop = area.scrollHeight;
+}
+
+async function buildMsgHtml(msg) {
+  var mine = msg.sender_id === currentUser.id;
+  var text = await Enc.decrypt(msg.encrypted_text, encryptionKey);
+  var time = new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+  return '<div class="msg-row ' + (mine?'mine':'theirs') + '">' +
+    '<div class="msg-bubble ' + (mine?'mine':'theirs') + '">' +
+    '<div>' + escapeHtml(text) + '</div>' +
+    '<div class="msg-time">' + time + '</div>' +
+    '</div></div>';
+}
+
+function renderMessages() {
+  if (!selectedUser) return;
+  loadAndRenderMessages();
+}
+
+// ===== SEND =====
+async function sendMessage() {
+  var input = document.getElementById('msg-input');
+  var text = input.value.trim();
+  if (!text || !selectedUser || !encryptionKey) return;
+  input.value = '';
+  document.getElementById('btn-send').disabled = true;
+  try {
+    var enc = await Enc.encrypt(text, encryptionKey);
+    await sb.from('echo_messages').insert({
+      chat_key: chatKey(currentUser.id, selectedUser.id),
+      sender_id: currentUser.id,
+      encrypted_text: enc
+    });
+    // Realtime will handle appending
+  } catch(e) { console.error('Send error:', e); }
+}
+
+// ===== REALTIME =====
+function subscribeRealtime() {
+  if (realtimeSub) sb.removeChannel(realtimeSub);
+  realtimeSub = sb
+    .channel('echo-messages')
+    .on('postgres_changes', { event:'INSERT', schema:'public', table:'echo_messages' }, async function(payload) {
+      var msg = payload.new;
+      if (!selectedUser) return;
+      var key = chatKey(currentUser.id, selectedUser.id);
+      if (msg.chat_key !== key) return;
+      var area = document.getElementById('messages-area');
+      var empty = area.querySelector('.empty-chat, .no-chat-selected');
+      if (empty) area.innerHTML = '';
+      var html = await buildMsgHtml(msg);
+      area.insertAdjacentHTML('beforeend', html);
+      area.scrollTop = area.scrollHeight;
+    })
+    .subscribe();
+}
+
+// ===== EVENTS =====
+document.getElementById('msg-input').addEventListener('input', function() {
+  document.getElementById('btn-send').disabled = !this.value.trim();
+});
+document.getElementById('msg-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (this.value.trim()) sendMessage(); }
+});
+document.getElementById('input-password').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') handleAuth();
+});
+document.getElementById('input-username').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('input-password').focus();
+});
+</script>
+</body>
+</html>
