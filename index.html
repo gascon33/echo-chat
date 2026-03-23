@@ -735,6 +735,38 @@ function renderMessages() {
 }
 
 // SEND
+  // SEND IMAGE
+async function sendImage(file) {
+  if (!file || !selectedUser || !encryptionKey) return;
+
+  try {
+    // уникальное имя файла
+    var path = currentUser.id + '/' + Date.now() + '-' + file.name;
+
+    // загрузка в bucket echo-files
+    var uploadRes = await sb.storage.from('echo-files').upload(path, file);
+    if (uploadRes.error) {
+      console.error('Upload error:', uploadRes.error);
+      return;
+    }
+
+    // получаем публичный URL
+    var urlRes = sb.storage.from('echo-files').getPublicUrl(path);
+    var publicUrl = urlRes.data.publicUrl;
+
+    // шифруем специальную "метку" с URL
+    var payload = '[image]' + publicUrl;
+    var enc = await Enc.encrypt(payload, encryptionKey);
+
+    await sb.from('echo_messages').insert({
+      chat_key: chatKey(currentUser.id, selectedUser.id),
+      sender_id: currentUser.id,
+      encrypted_text: enc
+    });
+  } catch (e) {
+    console.error('Send image error:', e);
+  }
+}
 async function sendMessage() {
   var input = document.getElementById('msg-input');
   var text = input.value.trim();
