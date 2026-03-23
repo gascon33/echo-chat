@@ -747,6 +747,32 @@ document.getElementById('input-password').addEventListener('keydown', function(e
 document.getElementById('input-username').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') document.getElementById('input-password').focus();
 });
+  // Фикс для iOS: вернуть масштаб после ввода
+(function () {
+  var ua = navigator.userAgent || '';
+  var isIOS = /iP(hone|od|ad)/.test(ua);
+
+  if (!isIOS) return;
+
+  var lastTouchY = 0;
+
+  document.addEventListener('focusin', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('msg-input')) {
+      lastTouchY = window.scrollY || 0;
+    }
+  });
+
+  document.addEventListener('focusout', function (e) {
+    if (e.target && e.target.classList && e.target.classList.contains('msg-input')) {
+      setTimeout(function () {
+        document.body.style.transform = 'scale(1)';
+        document.body.style.transformOrigin = '0 0';
+        window.scrollTo(0, lastTouchY);
+      }, 200);
+    }
+  });
+})();
+
 </script>
 </body>
 </html>
