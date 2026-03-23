@@ -5,14 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>ECHO — зашифрованный чат</title>
 
-  <!-- PWA: manifest + цвета статус-бара -->
+  <!-- PWA -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#080a10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ECHO" />
 
-  <!-- Иконка (можно будет заменить на свою) -->
   <link rel="icon" sizes="192x192" href="/icon-192.png" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
 
@@ -255,7 +254,6 @@
     .typing-dot:nth-child(3) { animation-delay:0.4s; }
     @keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
 
-    /* TABLET / SMALL DESKTOP */
     @media (max-width: 900px) {
       body {
         padding: 8px;
@@ -268,7 +266,6 @@
       }
     }
 
-    /* MOBILE: чат как приложение во весь экран */
     @media (max-width: 768px) {
       body {
         padding: 0;
@@ -358,7 +355,6 @@
 <div class="glow-1"></div>
 <div class="glow-2"></div>
 
-<!-- AUTH -->
 <div id="screen-auth" class="screen active">
   <div class="auth-card">
     <div class="logo-row">
@@ -396,7 +392,6 @@
   </div>
 </div>
 
-<!-- CHAT -->
 <div id="screen-chat" class="screen">
   <div class="sidebar closed" id="sidebar">
     <div class="sidebar-header">
@@ -451,21 +446,19 @@
 </div>
 
 <script>
-// ===== PWA: регистрация service worker =====
+// PWA: service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').catch(function(e){ console.log('SW reg error', e); });
   });
 }
 
-// ===== КОНФИГ SUPABASE (оставь свои значения) =====
+// Supabase config
 var SUPABASE_URL  = 'https://fpbkjrbcxbhdfeghqofg.supabase.co';
 var SUPABASE_KEY  = 'sb_publishable_75ql7kmFMAs8yxOql2bh9Q_x7D7t6Hh';
-
-// Инициализация Supabase
 var sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ===== STATE =====
+// STATE
 var currentUser    = null;
 var currentPassword = '';
 var selectedUser   = null;
@@ -474,7 +467,7 @@ var currentTab     = 'login';
 var realtimeSub    = null;
 var allContacts    = [];
 
-// ===== CRYPTO =====
+// CRYPTO
 var PasswordHasher = {
   hash: async function(password) {
     var data = new TextEncoder().encode(password);
@@ -535,7 +528,7 @@ var Enc = {
   }
 };
 
-// ===== HELPERS =====
+// HELPERS
 function escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -550,7 +543,7 @@ function showScreen(id) {
 }
 function chatKey(a, b) { return [a, b].sort().join('-'); }
 
-// ===== AUTH TABS =====
+// AUTH TABS
 function switchTab(tab) {
   currentTab = tab;
   var isLogin = tab === 'login';
@@ -569,7 +562,7 @@ function togglePassword() {
   document.getElementById('eye-off-icon').style.display = isText ? 'none' : '';
 }
 
-// ===== HANDLE AUTH =====
+// HANDLE AUTH
 async function handleAuth() {
   hideError();
   var username = document.getElementById('input-username').value.trim();
@@ -603,7 +596,7 @@ async function handleAuth() {
   }
 }
 
-// ===== ENTER CHAT =====
+// ENTER CHAT
 async function enterChat() {
   document.getElementById('input-username').value = '';
   document.getElementById('input-password').value = '';
@@ -615,7 +608,7 @@ async function enterChat() {
   showScreen('screen-chat');
 }
 
-// ===== LOGOUT =====
+// LOGOUT
 function handleLogout() {
   if (realtimeSub) { sb.removeChannel(realtimeSub); realtimeSub = null; }
   currentUser = null; currentPassword = ''; selectedUser = null; encryptionKey = null;
@@ -624,11 +617,11 @@ function handleLogout() {
   showScreen('screen-auth');
 }
 
-// ===== SIDEBAR =====
+// SIDEBAR
 function openSidebar() { document.getElementById('sidebar').classList.remove('closed'); }
 function closeSidebar() { document.getElementById('sidebar').classList.add('closed'); }
 
-// ===== CONTACTS =====
+// CONTACTS
 async function loadContacts() {
   var res = await sb.from('echo_users').select('id, username').neq('id', currentUser.id).order('username');
   allContacts = res.data || [];
@@ -662,7 +655,7 @@ function selectUser(user) {
   loadAndRenderMessages();
 }
 
-// ===== MESSAGES =====
+// MESSAGES
 async function loadAndRenderMessages() {
   var area = document.getElementById('messages-area');
   area.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;flex:1;gap:6px;color:var(--text3);font-family:var(--mono);font-size:12px;padding:24px"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div>';
@@ -703,7 +696,7 @@ function renderMessages() {
   loadAndRenderMessages();
 }
 
-// ===== SEND =====
+// SEND
 async function sendMessage() {
   var input = document.getElementById('msg-input');
   var text = input.value.trim();
@@ -720,7 +713,7 @@ async function sendMessage() {
   } catch(e) { console.error('Send error:', e); }
 }
 
-// ===== REALTIME =====
+// REALTIME
 function subscribeRealtime() {
   if (realtimeSub) sb.removeChannel(realtimeSub);
   realtimeSub = sb
@@ -740,7 +733,7 @@ function subscribeRealtime() {
     .subscribe();
 }
 
-// ===== EVENTS =====
+// EVENTS
 document.getElementById('msg-input').addEventListener('input', function() {
   document.getElementById('btn-send').disabled = !this.value.trim();
 });
@@ -756,4 +749,3 @@ document.getElementById('input-username').addEventListener('keydown', function(e
 </script>
 </body>
 </html>
-
