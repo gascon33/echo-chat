@@ -775,6 +775,16 @@ document.getElementById('input-password').addEventListener('keydown', function(e
 document.getElementById('input-username').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') document.getElementById('input-password').focus();
 });
+  var contactSearchInput = document.getElementById('contact-search');
+if (contactSearchInput) {
+  contactSearchInput.addEventListener('input', function () {
+    var val = this.value.trim();
+    if (val.startsWith('@')) val = val.slice(1);
+    contactFilter = val;
+    renderContacts();
+  });
+}
+
   // Фикс для iOS: вернуть масштаб после ввода
 (function () {
   var ua = navigator.userAgent || '';
