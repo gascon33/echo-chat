@@ -395,7 +395,7 @@
 
 <div id="screen-chat" class="screen">
   <div class="sidebar closed" id="sidebar">
-    <div class="sidebar-header">
+       <div class="sidebar-header">
       <div class="sidebar-logo">
         <div class="sidebar-logo-icon">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12c.5-2 1.5-3 3-3s2.5 2 4 2 2.5-4 4-4 2 2.5 3 3 2-1 4-1"/></svg>
@@ -410,8 +410,20 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         <span class="user-chip-name" id="current-username-label"></span>
       </div>
+
+      <!-- поиск по нику -->
+      <div style="margin-top:12px;">
+        <input
+          id="contact-search"
+          type="text"
+          placeholder="@username"
+          style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text2);font-family:var(--mono);font-size:12px;outline:none;"
+        />
+      </div>
     </div>
+
     <div class="contacts-list" id="contacts-list"></div>
+
     <div class="sidebar-footer">
       <button class="btn-logout" onclick="handleLogout()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
