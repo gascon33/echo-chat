@@ -267,20 +267,22 @@
     }
 
     @media (max-width: 768px) {
-      body {
-        padding: 0;
-        align-items: stretch;
-        overflow: hidden;
-      }
+  body {
+    padding: 0;
+    align-items: stretch;
+    overflow: hidden;
+  }
 
-      #screen-chat {
-        flex-direction: column;
-        width: 100%;
-        max-width: 100%;
-        height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
-        border: none;
+  #screen-chat {
+    flex-direction: column;
+    width: 100%;
+    max-width: 100%;
+    height: 85vh;        /* было 100vh */
+    max-height: 85vh;    /* было 100vh */
+    border-radius: 0;
+    border: none;
+  }
+}
           .chat-main {
     display: flex;
     flex-direction: column;
