@@ -717,18 +717,26 @@ async function loadAndRenderMessages() {
   area.innerHTML = html;
   area.scrollTop = area.scrollHeight;
 }
-
 async function buildMsgHtml(msg) {
   var mine = msg.sender_id === currentUser.id;
-  var text = await Enc.decrypt(msg.encrypted_text, encryptionKey);
+  var decrypted = await Enc.decrypt(msg.encrypted_text, encryptionKey);
   var time = new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' });
+
+  var contentHtml;
+
+  if (decrypted.startsWith('[image]')) {
+    var url = decrypted.slice(7);
+    contentHtml = '<img src="' + escapeHtml(url) + '" style="max-width:220px;border-radius:10px;display:block"/>';
+  } else {
+    contentHtml = '<div>' + escapeHtml(decrypted) + '</div>';
+  }
+
   return '<div class="msg-row ' + (mine?'mine':'theirs') + '">' +
     '<div class="msg-bubble ' + (mine?'mine':'theirs') + '">' +
-    '<div>' + escapeHtml(text) + '</div>' +
-    '<div class="msg-time">' + time + '</div>' +
+      contentHtml +
+      '<div class="msg-time">' + time + '</div>' +
     '</div></div>';
 }
-
 function renderMessages() {
   if (!selectedUser) return;
   loadAndRenderMessages();
