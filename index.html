@@ -584,7 +584,7 @@ async function handleAuth() {
       if (check.data) { showError('Это имя уже занято'); return; }
       var hash = await PasswordHasher.hash(password);
       var ins = await sb.from('echo_users').insert({ username: username, password_hash: hash }).select().single();
-      if (ins.error) { showError('Ошибка регистрации: ' + ins.error.message'); return; }
+      if (ins.error) { showError('Ошибка регистрации: ' + ins.error.message); return; }
       currentUser = ins.data;
     } else {
       var res = await sb.from('echo_users').select('*').eq('username', username).maybeSingle();
